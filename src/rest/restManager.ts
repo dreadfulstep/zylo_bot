@@ -2,15 +2,13 @@ import { Collection, DISCORDENO_VERSION, LogDepth, RestManager, createLogger, cr
 import { DISCORD_TOKEN } from '../config.js'
 import { setupRestAnalyticsHooks } from './influx.js'
 
-export const MANAGERS = new Collection<string, RestManager>()
-
 export const BOT_TOKENS = new Map<string, string>()
 
-BOT_TOKENS.set('bot_id_1', 'your_bot_token_1')
-BOT_TOKENS.set('bot_id_2', 'your_bot_token_2')
+BOT_TOKENS.set('1238948797770502226', '')
+BOT_TOKENS.set('1337156292057366528', '')
 
 const manager = createRestManager({
-  token: DISCORD_TOKEN,
+  token: DISCORD_TOKEN
 })
 
 manager.createBaseHeaders = () => {

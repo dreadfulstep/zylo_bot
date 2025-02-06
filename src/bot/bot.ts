@@ -3,6 +3,8 @@ import { DISCORD_TOKEN, GATEWAY_AUTHORIZATION, GATEWAY_INTENTS, GATEWAY_URL, RES
 import type { ManagerGetShardInfoFromGuildId, ShardInfo, WorkerPresencesUpdate, WorkerShardPayload } from '../gateway/worker/types.js'
 import type { Command } from './commands.js'
 
+import './test.js';
+
 const rawBot = createBot({
   token: DISCORD_TOKEN,
   intents: GATEWAY_INTENTS,

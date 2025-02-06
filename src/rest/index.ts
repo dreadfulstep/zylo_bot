@@ -1,7 +1,7 @@
-import { createRestManager, type RequestMethods } from '@discordeno/bot'
+import { type RequestMethods } from '@discordeno/bot'
 import { REST_HOST, REST_PORT } from '../config.js'
 import { buildFastifyApp, parseMultiformBody } from './fastify.js'
-import { logger, BOT_TOKENS, MANAGERS } from './restManager.js'
+import { logger, BOT_TOKENS, default as manager } from './restManager.js'
 
 const app = buildFastifyApp()
 
@@ -25,22 +25,19 @@ app.all('/*', async (req, res) => {
     if (!botId) {
       return res.status(400).send({ message: 'Invalid bot_id' })
     }
-    let manager = MANAGERS.get(botId)
 
-    if (!manager) {
-      if (BOT_TOKENS.has(botId)) {
-        manager = createRestManager({
-          token: BOT_TOKENS.get(botId)!
-        })
-        MANAGERS.set(botId, manager)
-      } else {
-        return res.status(400).send({
-          message: 'Invalid bot_id'
-        })
-      }
+    const botToken = BOT_TOKENS.get(botId)
+    if (!botToken) {
+      return res.status(400).send({ message: 'Invalid bot_id' })
     }
 
-    const result = await manager.makeRequest(req.method as RequestMethods, `${manager.baseUrl}${url}`, { body })
+    const result = await manager.makeRequest(req.method as RequestMethods, `${manager.baseUrl}${url}`, {
+      body,
+      unauthorized: true,
+      headers: {
+        Authorization: `Bot ${botToken}`,
+      },
+    })
 
     if (result) {
       res.status(200).send(result)
@@ -48,11 +45,11 @@ app.all('/*', async (req, res) => {
     }
 
     res.status(204).send({})
-  } catch (error : any) {
+  } catch (error: any) {
     logger.error(error)
 
     res.status(500).send({
-      message: error.message || 'An error occurred'
+      message: error.message || 'An error occurred',
     })
   }
 })
