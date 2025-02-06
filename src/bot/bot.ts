@@ -56,6 +56,7 @@ bot.events.ready = (payload) => {
 }
 
 ;(bot.logger as typeof logger).setDepth(LogDepth.Full)
+;(bot.logger as typeof logger).setLevel(LogLevels.Debug)
 
 bot.commands = new Collection()
 

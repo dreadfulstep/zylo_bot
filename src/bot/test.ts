@@ -1,7 +1,7 @@
 import { createBot, DISCORDENO_VERSION } from "@discordeno/bot";
 import { REST_AUTHORIZATION, REST_URL } from "../config.js";
 
-const botTokens = ["", ""];
+const botTokens = ["MTIzODk0ODc5Nzc3MDUwMjIyNg.GTs3eS.gWS2n7-Muwd30nfj3K2jWRabAaFwXv8DM6ezlA", "MTMzNzE1NjI5MjA1NzM2NjUyOA.G_zcFA.cLtC0LI9LPfcW7iJovnmJbOjBZrf6hgKnT2O0E"];
 
 botTokens.forEach(async (token, index) => {
     const bot = createBot({

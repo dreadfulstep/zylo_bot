@@ -6,6 +6,7 @@ import { logger, BOT_TOKENS, default as manager } from './restManager.js'
 const app = buildFastifyApp()
 
 app.get('/timecheck', async (_req, res) => {
+  logger.debug('Received request on /timecheck')
   res.status(200).send({ message: Date.now() })
 })
 
@@ -20,18 +21,26 @@ app.all('/*', async (req, res) => {
   const hasBody = req.method !== 'GET' && req.method !== 'DELETE'
   const body = hasBody ? (isMultipart ? await parseMultiformBody(req.body) : req.body) : undefined
 
+
   try {
     const botId = req.headers.bot_id as string | undefined
     if (!botId) {
+      logger.debug('Invalid bot_id')
       return res.status(400).send({ message: 'Invalid bot_id' })
     }
 
-    const botToken = BOT_TOKENS.get(botId)
+    let botToken = BOT_TOKENS.get(botId)
+
+    if (botId === manager.applicationId.toString()) {
+      botToken = manager.token
+    }
+    
     if (!botToken) {
+      logger.debug('Invalid bot_id')
       return res.status(400).send({ message: 'Invalid bot_id' })
     }
 
-    const result = await manager.makeRequest(req.method as RequestMethods, `${manager.baseUrl}${url}`, {
+    const result = await manager.makeRequest(req.method as RequestMethods, `${url}`, {
       body,
       unauthorized: true,
       headers: {

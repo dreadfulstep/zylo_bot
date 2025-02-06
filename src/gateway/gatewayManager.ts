@@ -1,5 +1,5 @@
 import type { Worker } from 'node:worker_threads'
-import { LogDepth, createGatewayManager, createLogger, createRestManager } from '@discordeno/bot'
+import { DISCORDENO_VERSION, LogDepth, createGatewayManager, createLogger, createRestManager } from '@discordeno/bot'
 import { DISCORD_TOKEN, GATEWAY_INTENTS, REST_AUTHORIZATION, REST_URL, SHARDS_PER_WORKER, TOTAL_SHARDS, TOTAL_WORKERS } from '../config.js'
 import { createWorker } from './worker/createWorker.js'
 import type { WorkerMessage } from './worker/types.js'
@@ -15,6 +15,13 @@ const restManager = createRestManager({
     authorization: REST_AUTHORIZATION,
   },
 })
+
+restManager.createBaseHeaders = () => {
+        return {
+          'user-agent': `DiscordBot (https://github.com/discordeno/discordeno, v${DISCORDENO_VERSION})`,
+          bot_id: restManager.applicationId.toString(),
+        }
+}
 
 const gatewayBotConfig = await restManager.getGatewayBot()
 
