@@ -1,16 +1,19 @@
-import { bot, getShardInfoFromGuild } from '../bot.js'
+import { getClient } from '../bot.js';
 import createCommand from '../commands.js'
 import { readFileSync } from 'node:fs';
+import { getShardInfoFromGuild } from '../mainBot.js';
+
+const bot = await getClient();
 
 createCommand({
   name: 'botinfo',
   description: 'Display bot statistics and info.',
   async run(interaction) {
-    const shardCount = bot.gateway.totalShards;
+    const shardCount = bot!.gateway.totalShards;
     const shardInfo = await getShardInfoFromGuild(interaction.guildId)
     const shardPing = shardInfo.rtt === -1 ? '*Not yet available*' : `${shardInfo.rtt}ms`;
 
-    const workerCount = bot.gateway.totalWorkers;
+    const workerCount = bot!.gateway.totalWorkers;
     const memoryUsage = process.memoryUsage().heapUsed / 1024 / 1024 
     const memoryUsageFormatted = memoryUsage.toFixed(2)
 
@@ -19,7 +22,7 @@ createCommand({
 
     const embed = {
       title: 'Bot Information',
-      description: `Here are the current stats for <@${bot.id}>`,
+      description: `Here are the current stats for <@${bot!.id}>`,
       fields: [
         { name: 'Shard Count', value: `${shardCount}`, inline: true },
         { name: 'Shard Ping', value: `${shardPing}`, inline: true },

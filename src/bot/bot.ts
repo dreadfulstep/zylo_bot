@@ -1,124 +1,81 @@
-import { Collection, DISCORDENO_VERSION, LogDepth, LogLevels, createBot, type logger } from '@discordeno/bot'
-import { DISCORD_TOKEN, GATEWAY_AUTHORIZATION, GATEWAY_INTENTS, GATEWAY_URL, REST_AUTHORIZATION, REST_URL } from '../config.js'
-import type { ManagerGetShardInfoFromGuildId, ShardInfo, WorkerPresencesUpdate, WorkerShardPayload } from '../gateway/worker/types.js'
-import type { Command } from './commands.js'
+import { Worker } from "worker_threads";
+import { REST_AUTHORIZATION, REST_URL } from "../config.js";
+import { BOT_TOKENS, fetchBotTokens } from "../rest/restManager.js";
+import { connectToDatabase } from "./utils/db.js";
+import { logger } from "@discordeno/bot";
+import mainBot from "./mainBot.js";
 
-import './test.js';
+const botWorkers = new Map<string, Worker>();
 
-const rawBot = createBot({
-  token: DISCORD_TOKEN,
-  intents: GATEWAY_INTENTS,
-  // TEMPLATE-SETUP: Add/Remove the desired properties that you don't need
-  desiredProperties: {
-    user: {
-      id: true,
-      username: true,
-      toggles: true,
-    },
-    message: {
-      channelId: true,
-      content: true,
-      id: true,
-      
-      author: true,
-      guildId: true,
-    },
-    interaction: {
-      id: true,
-      data: true,
-      type: true,
-      user: true,
-      token: true,
-      guildId: true,
-    },
-  },
-  rest: {
-    token: DISCORD_TOKEN,
-    proxy: {
-      baseUrl: REST_URL,
-      authorization: REST_AUTHORIZATION,
-    },
-  },
-})
-
-export const bot = rawBot as CustomBot
-
-bot.events.ready = (payload) => {
-  bot.gateway.editShardStatus(payload.shardId, {
-    status: 'online',
-    activities: [
-      {
-        name: `On Shard ${payload.shardId} / ${bot.gateway.totalShards}`,
-        type: 0,
-      },
-    ],
-  })
-}
-
-;(bot.logger as typeof logger).setDepth(LogDepth.Full)
-
-bot.commands = new Collection()
-
-overrideGatewayImplementations(bot)
-
-export type CustomBot = typeof rawBot & {
-  commands: Collection<string, Command>
-}
-
-function overrideGatewayImplementations(bot: CustomBot): void {
-  bot.gateway.sendPayload = async (shardId, payload) => {
-    await fetch(GATEWAY_URL, {
-      method: 'POST',
-      body: JSON.stringify({
-        type: 'ShardPayload',
-        shardId,
-        payload,
-      } satisfies WorkerShardPayload),
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: GATEWAY_AUTHORIZATION,
-      },
-    })
+async function initializeBot(botId: string, token: string) {
+  if (botWorkers.has(botId)) {
+    logger.warn(`Bot ${botId} is already running.`);
+    return;
   }
 
-  bot.gateway.editBotStatus = async (payload) => {
-    await fetch(GATEWAY_URL, {
-      method: 'POST',
-      body: JSON.stringify({
-        type: 'EditShardsPresence',
-        payload,
-      } satisfies WorkerPresencesUpdate),
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: GATEWAY_AUTHORIZATION,
-      },
-    })
-  }
+  const worker = new Worker(new URL("./botWorker.js", import.meta.url), {
+    workerData: { botId, token, restUrl: REST_URL, auth: REST_AUTHORIZATION },
+  });
 
-  bot.rest.createBaseHeaders = () => {
-    return {
-      'user-agent': `DiscordBot (https://github.com/discordeno/discordeno, v${DISCORDENO_VERSION})`,
-      bot_id: bot.rest.applicationId.toString(),
+  worker.on("message", (msg) => logger.info(`[Bot ${botId}] ${msg}`));
+  worker.on("error", (err) => logger.error(`[Bot ${botId}] Worker Error:`, err));
+  worker.on("exit", (code) => {
+    logger.warn(`Bot ${botId} exited with code ${code}`);
+    botWorkers.delete(botId);
+  });
+
+  botWorkers.set(botId, worker);
+  logger.info(`Bot ${botId} initialized in a worker thread.`);
+}
+
+async function initializeAllBots() {
+  await fetchBotTokens();
+  const tokensArray = Array.from(BOT_TOKENS.entries());
+
+  logger.info(`Initializing ${tokensArray.length} bots...`);
+  for (const [botId, token] of tokensArray) {
+    await initializeBot(botId, token);
+  }
+}
+
+async function listenForNewBots() {
+  const client = await connectToDatabase();
+  client.query("LISTEN new_bot_inserted");
+
+  client.on("notification", async (msg) => {
+    if (msg.channel === "new_bot_inserted") {
+      const botId = msg.payload;
+      logger.info(`Received notification: New bot inserted with ID ${botId}`);
+
+      await fetchBotTokens(botId);
+      const newBotToken = botId ? BOT_TOKENS.get(botId) : undefined;
+      if (newBotToken) {
+        await initializeBot(botId as string, newBotToken);
+      }
     }
+  });
+
+  logger.info("Listening for new bot insertions...");
+}
+
+/**
+ * Retrieves the bot client.
+ * @param botId - The ID of the bot. If undefined, returns the main bot.
+ */
+export async function getClient(botId?: string) {
+  if (!botId) {
+    return mainBot();
+  }
+  if (!botWorkers.has(botId)) {
+    throw new Error(`Bot ${botId} is not running.`);
+  }
+  
+  const worker = botWorkers.get(botId);
+  if (!worker) {
+    throw new Error(`Worker for bot ${botId} is undefined.`);
   }
 }
 
-export async function getShardInfoFromGuild(guildId?: bigint): Promise<Omit<ShardInfo, 'nonce'>> {
-  const req = await fetch(GATEWAY_URL, {
-    method: 'POST',
-    body: JSON.stringify({
-      type: 'ShardInfoFromGuild',
-      guildId: guildId?.toString(),
-    } as ManagerGetShardInfoFromGuildId),
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: GATEWAY_AUTHORIZATION,
-    },
-  })
-
-  const res = await req.json()
-
-  if (req.ok) return res
-
-  throw new Error(`There was an issue getting the shard info: ${res.error}`)
-}
+initializeAllBots()
+  .then(() => listenForNewBots())
+  .catch((err) => logger.error("Error initializing bots:", err));

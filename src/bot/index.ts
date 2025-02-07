@@ -10,7 +10,7 @@ import {
   MESSAGEQUEUE_USERNAME,
 } from '../config.js'
 import { getDirnameFromFileUrl } from '../util.js'
-import { bot } from './bot.js'
+import { getClient } from './bot.js'
 import { buildFastifyApp } from './fastify.js'
 import importDirectory from './utils/loader.js'
 
@@ -26,6 +26,13 @@ if (MESSAGEQUEUE_ENABLE) {
 
 const app = buildFastifyApp()
 
+const bot = await getClient();
+
+if (!bot) {
+  console.error("Bot instance is unavailable. Exiting...");
+  process.exit(0);
+}
+
 app.get('/timecheck', async (_req, res) => {
   res.status(200).send({ message: Date.now() })
 })
@@ -38,7 +45,7 @@ app.post('/', async (req, res) => {
 
     res.status(200).send()
   } catch (error) {
-    bot.logger.error('There was an error handling the incoming gateway command', error)
+    bot.logger?.error('There was an error handling the incoming gateway command', error)
     res.status(500).send()
   }
 })
@@ -51,19 +58,21 @@ await app.listen({
 bot.logger.info(`Bot event handler is listening on port ${EVENT_HANDLER_PORT}`)
 
 async function handleGatewayEvent(payload: DiscordGatewayPayload, shardId: number): Promise<void> {
-  bot.events.raw?.(payload, shardId)
+  bot!.events.raw?.(payload, shardId)
   // If we don't have the event type we don't process it further
   if (!payload.t) return
 
   // Run the dispatch check
-  await bot.events.dispatchRequirements?.(payload, shardId)
+  await bot!.events.dispatchRequirements?.(payload, shardId)
 
-  bot.handlers[payload.t as GatewayDispatchEventNames]?.(bot, payload, shardId)
+  if (bot) {
+    bot.handlers[payload.t as GatewayDispatchEventNames]?.(bot, payload, shardId)
+  }
 }
 
 async function connectToRabbitMQ(): Promise<void> {
   const connection = await connectAmqp(`amqp://${MESSAGEQUEUE_USERNAME}:${MESSAGEQUEUE_PASSWORD}@${MESSAGEQUEUE_URL}`).catch((error) => {
-    bot.logger.error('Failed to connect to RabbitMQ, retrying in 1s.', error)
+    bot!.logger.error('Failed to connect to RabbitMQ, retrying in 1s.', error)
     setTimeout(connectToRabbitMQ, 1000)
   })
 
@@ -73,12 +82,12 @@ async function connectToRabbitMQ(): Promise<void> {
     setTimeout(connectToRabbitMQ, 1000)
   })
   connection.on('error', (error) => {
-    bot.logger.error('There was an error in the connection with RabbitMQ, reconnecting in 1s.', error)
+    bot!.logger.error('There was an error in the connection with RabbitMQ, reconnecting in 1s.', error)
     setTimeout(connectToRabbitMQ, 1000)
   })
 
   const channel = await connection.createChannel().catch((error) => {
-    bot.logger.error('There was an error creating the RabbitMQ channel', error)
+    bot!.logger.error('There was an error creating the RabbitMQ channel', error)
   })
 
   if (!channel) return
@@ -92,13 +101,13 @@ async function connectToRabbitMQ(): Promise<void> {
       },
     })
     .catch((error) => {
-      bot.logger.error('There was an error asserting the exchange', error)
+      bot!.logger.error('There was an error asserting the exchange', error)
     })
 
   if (!exchange) return
 
-  await channel.assertQueue('gatewayMessageQueue').catch(bot.logger.error)
-  await channel.bindQueue('gatewayMessageQueue', 'gatewayMessage', '').catch(bot.logger.error)
+  await channel.assertQueue('gatewayMessageQueue').catch(bot!.logger.error)
+  await channel.bindQueue('gatewayMessageQueue', 'gatewayMessage', '').catch(bot!.logger.error)
   await channel
     .consume('gatewayMessageQueue', async (message) => {
       if (!message) return
@@ -110,10 +119,10 @@ async function connectToRabbitMQ(): Promise<void> {
 
         channel.ack(message)
       } catch (error) {
-        bot.logger.error('There was an error handling events received from RabbitMQ', error)
+        bot!.logger.error('There was an error handling events received from RabbitMQ', error)
       }
     })
-    .catch(bot.logger.error)
+    .catch(bot!.logger.error)
 }
 
 interface GatewayEvent {
