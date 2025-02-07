@@ -1,8 +1,30 @@
+
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_db
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER} -d ${PGDATABASE}"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
   influxdb:
     image: influxdb:2.7-alpine
     ports:
-      - 127.0.0.1:8086:8086
+      - "127.0.0.1:8086:8086"
     env_file:
       - .env
     healthcheck:
@@ -16,13 +38,15 @@ services:
       context: .
       target: rabbitmq
     ports:
-      - 127.0.0.1:15672:15672
+      - "127.0.0.1:15672:15672"
 
   rest:
     build:
       context: .
       target: rest
     depends_on:
+      postgres:
+        condition: service_healthy
       influxdb:
         condition: service_healthy
     env_file:
@@ -53,3 +77,6 @@ services:
       - .env
     volumes:
       - ./src/bot/commands:/usr/src/app/src/bot/commands:ro
+
+volumes:
+  pg_data:

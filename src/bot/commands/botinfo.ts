@@ -6,7 +6,6 @@ createCommand({
   name: 'botinfo',
   description: 'Display bot statistics and info.',
   async run(interaction) {
-    console.log(bot.gateway)
     const shardCount = bot.gateway.totalShards;
     const shardInfo = await getShardInfoFromGuild(interaction.guildId)
     const shardPing = shardInfo.rtt === -1 ? '*Not yet available*' : `${shardInfo.rtt}ms`;

@@ -35,7 +35,6 @@ bot.events.interactionCreate = async (interaction) => {
   }
 }
 
-
 function logCommand(
   interaction: typeof bot.transformers.$inferredTypes.interaction,
   type: 'Failure' | 'Success' | 'Trigger' | 'Missing',
