@@ -17,7 +17,7 @@ app.all('/*', async (req, res) => {
     url = url.slice(url.indexOf('/', 2))
   }
 
-  const isMultipart = req.headers['content-type']?.startsWith('multipart/form-data')
+  const isMultipart = req.isMultipart();
   const hasBody = req.method !== 'GET' && req.method !== 'DELETE'
   const body = hasBody ? (isMultipart ? await parseMultiformBody(req.body) : req.body) : undefined
 
