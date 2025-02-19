@@ -6,6 +6,8 @@ import { connectToDatabase } from './utils/db.js';
 export const BOT_TOKENS = new Map<string, string>()
 
 export async function fetchBotTokens(botId?: string) {
+  if (BOT_TOKENS.has(botId)) return BOT_TOKENS.get(botId);
+  
   const client = await connectToDatabase();
 
   let query = 'SELECT token, bot_id FROM bots';
