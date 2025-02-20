@@ -1,7 +1,5 @@
 import { logger } from "@discordeno/bot";
-import pg from 'pg';
-
-const { Client } = pg;
+import { Client } from 'pg';
 
 let cachedClient: InstanceType<typeof Client> | null = null;
 
